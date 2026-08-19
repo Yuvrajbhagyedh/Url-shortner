@@ -69,6 +69,10 @@ export default function Dashboard() {
     api
       .listLinks()
       .then(setLinks)
+      .catch((err) => {
+        setLinks([]);
+        console.error(err);
+      })
       .finally(() => setLoading(false));
   };
 

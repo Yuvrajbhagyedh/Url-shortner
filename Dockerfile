@@ -23,4 +23,6 @@ ENV FRONTEND_DIST=/app/frontend/dist \
     CELERY_ALWAYS_EAGER=1 \
     SHORTX_LOCAL=1
 EXPOSE 8000
-CMD ["sh", "-c", "gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} --workers 1"]
+# Single uvicorn process — lighter on Render Free (512MB) than gunicorn.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+

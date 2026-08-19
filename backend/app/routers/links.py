@@ -64,6 +64,7 @@ def _create_link(payload: LinkCreate, db: Session, owner_id: Optional[int]) -> L
 
 
 @router.post("", response_model=LinkOut, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=LinkOut, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_link(
     payload: LinkCreate,
     _: None = Depends(api_rate_limit),
@@ -75,6 +76,7 @@ def create_link(
 
 
 @router.get("", response_model=list[LinkOut])
+@router.get("/", response_model=list[LinkOut], include_in_schema=False)
 def list_links(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
