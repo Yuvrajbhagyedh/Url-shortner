@@ -6,18 +6,24 @@ import redis
 from .config import settings
 
 
+def _use_fake() -> bool:
+    flag = os.getenv("SHORTX_LOCAL", "").lower() in {"1", "true", "yes"}
+    return flag or settings.redis_url.startswith("memory")
+
+
 def _make_client():
     """Return a Redis client.
 
     In a normal deployment this is a real Redis connection. For a zero-service
-    local run (SHORTX_LOCAL=1) or when Redis is simply unreachable, fall back to
-    an in-process fakeredis so the app is fully runnable offline on any machine.
+    local/demo run (SHORTX_LOCAL=1 or REDIS_URL=memory://) or when Redis is
+    unreachable, fall back to an in-process fakeredis.
     """
-    client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
-    if os.getenv("SHORTX_LOCAL", "").lower() in {"1", "true", "yes"}:
+    if _use_fake():
         import fakeredis
 
         return fakeredis.FakeStrictRedis(decode_responses=True)
+
+    client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
     try:
         client.ping()
         return client

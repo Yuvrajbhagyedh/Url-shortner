@@ -16,7 +16,9 @@ if _db_url.startswith("postgres://"):
 # SQLite (used in tests) doesn't accept the QueuePool sizing kwargs, so only
 # pass them for real server databases like PostgreSQL.
 _engine_kwargs: dict = {"pool_pre_ping": True}
-if not _db_url.startswith("sqlite"):
+if _db_url.startswith("sqlite"):
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
     _engine_kwargs.update(pool_size=10, max_overflow=20)
 
 engine = create_engine(_db_url, **_engine_kwargs)
