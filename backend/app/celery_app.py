@@ -23,7 +23,12 @@ celery_app.conf.update(
     task_default_queue="analytics",
 )
 
-# Zero-service local run: execute tasks inline (no broker/worker needed) so a
-# redirect still records its click without a running Celery worker.
-if os.getenv("SHORTX_LOCAL", "").lower() in {"1", "true", "yes"}:
+# Run tasks inline (no broker/worker needed) so a redirect still records its
+# click without a running Celery worker. Enabled for the zero-service local run
+# (SHORTX_LOCAL) and for deployments that choose not to run a separate worker
+# (CELERY_ALWAYS_EAGER) — e.g. a single free web service on Render.
+_EAGER = os.getenv("SHORTX_LOCAL", "").lower() in {"1", "true", "yes"} or os.getenv(
+    "CELERY_ALWAYS_EAGER", ""
+).lower() in {"1", "true", "yes"}
+if _EAGER:
     celery_app.conf.update(task_always_eager=True, task_eager_propagates=False)
