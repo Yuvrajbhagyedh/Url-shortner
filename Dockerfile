@@ -3,9 +3,8 @@ WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-# Same-origin API when UI is served by FastAPI.
 ENV VITE_API_BASE=
-RUN npm run build
+RUN npm run build && test -f dist/index.html && test -d dist/assets
 
 FROM python:3.12-slim
 WORKDIR /app
@@ -16,8 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
-COPY --from=frontend /web/dist /frontend/dist
-ENV FRONTEND_DIST=/frontend/dist \
+COPY --from=frontend /web/dist ./frontend/dist
+RUN test -f /app/frontend/dist/index.html && ls /app/frontend/dist/assets | head
+ENV FRONTEND_DIST=/app/frontend/dist \
     DATABASE_URL=sqlite+pysqlite:////app/shortx.db \
     REDIS_URL=memory:// \
     CELERY_ALWAYS_EAGER=1 \
