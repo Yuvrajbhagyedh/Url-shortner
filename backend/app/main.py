@@ -1,11 +1,11 @@
 """ShortX FastAPI application entrypoint."""
 from contextlib import asynccontextmanager
+from mimetypes import guess_type
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
@@ -14,9 +14,22 @@ from .routers import analytics, apikeys, auth, links, public_api, redirect
 
 
 def frontend_dir() -> Path:
+    candidates = []
     if settings.frontend_dist:
-        return Path(settings.frontend_dist)
-    return Path(__file__).resolve().parents[2] / "frontend" / "dist"
+        candidates.append(Path(settings.frontend_dist))
+    here = Path(__file__).resolve()
+    candidates.extend(
+        [
+            here.parents[1] / "frontend" / "dist",  # /app/frontend/dist in Docker
+            here.parents[2] / "frontend" / "dist",  # repo layout
+            Path("/app/frontend/dist"),
+            Path("/frontend/dist"),
+        ]
+    )
+    for path in candidates:
+        if (path / "index.html").is_file():
+            return path
+    return candidates[0]
 
 
 @asynccontextmanager
@@ -47,11 +60,18 @@ app.add_middleware(
 
 @app.get("/health", tags=["meta"])
 def health():
+    dist = frontend_dir()
     try:
         redis_ok = redis_client.ping()
     except Exception:
         redis_ok = False
-    return {"status": "ok", "service": settings.app_name, "redis": redis_ok}
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "redis": redis_ok,
+        "frontend": (dist / "index.html").is_file(),
+        "frontend_dist": str(dist),
+    }
 
 
 # API routers (order matters: the catch-all redirect route is registered last).
@@ -61,26 +81,34 @@ app.include_router(apikeys.router)
 app.include_router(analytics.router)
 app.include_router(public_api.router)
 
-_dist = frontend_dir()
-_assets = _dist / "assets"
-if _assets.is_dir():
-    app.mount("/assets", StaticFiles(directory=str(_assets)), name="frontend-assets")
-
-_SPA_PREFIXES = ("login", "keys", "analytics")
-
 
 def _spa_index():
     index = frontend_dir() / "index.html"
     if not index.is_file():
         raise HTTPException(status_code=500, detail="Frontend build is missing")
-    return FileResponse(index)
+    return FileResponse(index, media_type="text/html")
+
+
+@app.api_route("/assets/{asset_path:path}", methods=["GET", "HEAD"])
+def spa_assets(asset_path: str):
+    """Serve Vite assets with correct MIME types (avoids text/plain 404s)."""
+    base = (frontend_dir() / "assets").resolve()
+    target = (base / asset_path).resolve()
+    if not str(target).startswith(str(base)) or not target.is_file():
+        raise HTTPException(status_code=404, detail="Asset not found")
+    media_type, _ = guess_type(str(target))
+    if target.suffix == ".css":
+        media_type = "text/css"
+    elif target.suffix == ".js":
+        media_type = "application/javascript"
+    return FileResponse(target, media_type=media_type or "application/octet-stream")
 
 
 @app.api_route("/", methods=["GET", "HEAD"])
 def spa_root():
     if (frontend_dir() / "index.html").is_file():
         return _spa_index()
-    raise HTTPException(status_code=404, detail="Not found")
+    raise HTTPException(status_code=404, detail="Frontend build is missing")
 
 
 @app.api_route("/login", methods=["GET", "HEAD"])
