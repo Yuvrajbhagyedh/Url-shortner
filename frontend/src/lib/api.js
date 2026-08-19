@@ -1,5 +1,9 @@
 // Thin fetch wrapper around the ShortX API with JWT handling.
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+// Empty string = same origin (Docker / Render single service).
+const API_BASE =
+  import.meta.env.VITE_API_BASE !== undefined
+    ? import.meta.env.VITE_API_BASE
+    : "http://localhost:8000";
 
 const TOKEN_KEY = "shortx_token";
 

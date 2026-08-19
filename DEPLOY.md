@@ -1,68 +1,41 @@
-# Deploying ShortX to Render
+# Deploy ShortX (free, no card for Postgres/Redis)
 
-This repo ships a `render.yaml` Blueprint that provisions everything:
+Host everything as **one Free web service** — SQLite + in-memory cache, UI and API on the same URL. Same pattern as the realtime chat app.
 
-| Service | What it is | Plan |
-|---|---|---|
-| `shortx-db` | PostgreSQL | free |
-| `shortx-redis` | Redis (Key Value) — cache + rate limiting | free |
-| `shortx-api` | FastAPI backend (Celery runs inline, no worker) | free |
-| `shortx-frontend` | React + Vite static site | free |
+## Steps on Render
 
-> Free Postgres on Render is deleted after ~30 days and free web services sleep
-> after inactivity (first request is slow). Fine for a demo/portfolio; upgrade
-> the two paid-but-cheap plans if you want it always-on.
+1. Open [https://dashboard.render.com](https://dashboard.render.com) (already logged in with GitHub).
 
-## Steps
+2. **+ New → Web Service** (do **not** pick Blueprint / Postgres / Key Value).
 
-1. **Push this repo to GitHub** (already done: `Yuvrajbhagyedh/Url-shortner`).
+3. Connect repo **Yuvrajbhagyedh/Url-shortner**, branch **main**.
 
-2. **Create a Render account** at https://render.com and connect your GitHub.
+4. Settings:
+   - **Language:** Docker  
+   - **Dockerfile path:** `./Dockerfile`  
+   - **Instance type:** **Free**  
+   - Root directory: leave empty  
 
-3. **New + → Blueprint**, pick the `Url-shortner` repo. Render reads
-   `render.yaml` and shows the four services. Click **Apply**.
+5. Environment variables (optional — Dockerfile already sets defaults):
 
-4. Render will ask for the two `sync: false` values. You can leave them blank
-   for the first apply and fill them once the URLs exist:
-   - On **shortx-api**, set `CORS_ORIGINS` = the frontend URL
-     (e.g. `https://shortx-frontend.onrender.com`).
-   - On **shortx-frontend**, set `VITE_API_BASE` = the backend URL
-     (e.g. `https://shortx-api.onrender.com`), then **Manual Deploy → Clear
-     build cache & deploy** so Vite re-bakes it in.
+   | Name | Value |
+   | --- | --- |
+   | `DATABASE_URL` | `sqlite+pysqlite:////app/shortx.db` |
+   | `REDIS_URL` | `memory://` |
+   | `CELERY_ALWAYS_EAGER` | `1` |
+   | `SHORTX_LOCAL` | `1` |
+   | `JWT_SECRET` | click **Generate** |
 
-5. Open the frontend URL, sign up, and create a link. Short links are served by
-   the backend (e.g. `https://shortx-api.onrender.com/abc1234`) and resolve
-   automatically — `BASE_URL` is derived from Render's injected URL.
+6. Click **Deploy Web Service**. Wait until **Live**.
 
-## Custom short-link domain (optional)
+7. Open the `.onrender.com` URL → register → create a short link.
 
-1. Add your domain to the **shortx-api** service (Settings → Custom Domains) and
-   point its DNS at Render as instructed.
-2. Set `BASE_URL=https://yourdomain.com` on **shortx-api**.
-3. New short links will now read `yourdomain.com/abc1234`.
+Short links look like `https://your-service.onrender.com/abc1234`.
 
-## Environment variables (reference)
+## Notes
 
-See `backend/.env.example`. On Render, `DATABASE_URL`, `REDIS_URL`, the Celery
-URLs, and `JWT_SECRET` are wired automatically by the Blueprint. `CELERY_ALWAYS_EAGER=1`
-makes the redirect record clicks inline so no separate Celery worker is needed.
+- Free instances sleep after idle time; first load can take ~30–50s.
+- SQLite data can reset when the free instance restarts (no paid disk).
+- Do not add Postgres or Key Value unless you want to pay.
 
-### Want a real Celery worker later?
-Remove `CELERY_ALWAYS_EAGER`, then add a `worker` service in `render.yaml`:
-
-```yaml
-  - type: worker
-    name: shortx-worker
-    runtime: python
-    plan: starter        # background workers are not free
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: celery -A app.celery_app.celery_app worker -Q analytics --loglevel=info
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase: { name: shortx-db, property: connectionString }
-      - key: CELERY_BROKER_URL
-        fromService: { type: keyvalue, name: shortx-redis, property: connectionString }
-      - key: CELERY_RESULT_BACKEND
-        fromService: { type: keyvalue, name: shortx-redis, property: connectionString }
-```
+Repo: https://github.com/Yuvrajbhagyedh/Url-shortner
