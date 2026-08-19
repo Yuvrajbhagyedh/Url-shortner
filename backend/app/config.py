@@ -1,7 +1,12 @@
 """Application configuration loaded from environment variables."""
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# On Render (and similar PaaS) the public URL is injected as RENDER_EXTERNAL_URL.
+# Use it to build short links automatically when BASE_URL isn't set explicitly.
+_DEFAULT_BASE_URL = os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:8000"
 
 
 class Settings(BaseSettings):
@@ -11,7 +16,7 @@ class Settings(BaseSettings):
     app_name: str = "ShortX"
     environment: str = "development"
     debug: bool = True
-    base_url: str = "http://localhost:8000"  # used to build short links
+    base_url: str = _DEFAULT_BASE_URL  # used to build short links
 
     # Database
     database_url: str = "postgresql+psycopg2://shortx:shortx@localhost:5432/shortx"
