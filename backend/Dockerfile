@@ -19,5 +19,6 @@ COPY . .
 EXPOSE 8000
 
 # Default command runs the API; docker-compose overrides this for the worker.
-CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000", "--workers", "2"]
+# Shell form so ${PORT} (injected by Render and other PaaS) is expanded; falls
+# back to 8000 for local `docker run`.
+CMD gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} --workers 2
