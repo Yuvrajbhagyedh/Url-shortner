@@ -36,7 +36,17 @@ async function request(path, { method = "GET", body, form, auth = true } = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.detail ? JSON.stringify(data.detail) : `Request failed (${res.status})`);
+    if (res.status === 404 || res.status === 502 || res.status === 503) {
+      throw new Error("Server is waking up or restarting. Wait 30 seconds and try again.");
+    }
+    const detail = data?.detail;
+    throw new Error(
+      typeof detail === "string"
+        ? detail
+        : detail
+          ? JSON.stringify(detail)
+          : `Request failed (${res.status})`
+    );
   }
   return data;
 }

@@ -67,12 +67,16 @@ def redirect(short_code: str, request: Request, db: Session = Depends(get_db)):
     if forwarded:
         client_ip = forwarded.split(",")[0].strip()
 
-    record_click.delay(
-        link_id=data["id"],
-        ip_address=client_ip,
-        user_agent=request.headers.get("user-agent"),
-        referrer=request.headers.get("referer"),
-        clicked_at_iso=datetime.now(timezone.utc).isoformat(),
-    )
+    try:
+        record_click.delay(
+            link_id=data["id"],
+            ip_address=client_ip,
+            user_agent=request.headers.get("user-agent"),
+            referrer=request.headers.get("referer"),
+            clicked_at_iso=datetime.now(timezone.utc).isoformat(),
+        )
+    except Exception:
+        # Never break the redirect if analytics enqueue fails.
+        pass
 
     return RedirectResponse(url=data["url"], status_code=status.HTTP_302_FOUND)

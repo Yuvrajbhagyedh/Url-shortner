@@ -75,15 +75,17 @@ def rate_limit(request: Request, limit_per_minute: int, bucket: str) -> None:
     """Fixed-window rate limiter backed by Redis.
 
     Keyed by client IP + bucket name. Raises 429 when the window budget is
-    exhausted. A sliding-window or token-bucket variant would be a drop-in
-    upgrade; fixed-window is chosen here for clarity.
+    exhausted. If Redis is unavailable, fail open so the API stays usable.
     """
     client_ip = request.client.host if request.client else "unknown"
     window = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
     key = f"shortx:ratelimit:{bucket}:{client_ip}:{window}"
-    current = redis_client.incr(key)
-    if current == 1:
-        redis_client.expire(key, 60)
+    try:
+        current = redis_client.incr(key)
+        if current == 1:
+            redis_client.expire(key, 60)
+    except Exception:
+        return
     if current > limit_per_minute:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
